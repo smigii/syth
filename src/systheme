@@ -5,28 +5,29 @@ import argparse
 import shlex
 import json
 import os
+import re
 
 # =============================================================================
 # === Globals =================================================================
 
-USER_HOME  = Path.home()
-USER_CONF  = USER_HOME.joinpath(".config")
-ST_ROOT    = USER_CONF.joinpath("systheme2")
-ST_DATA    = ST_ROOT.joinpath("data")
-ST_STHEMES = ST_ROOT.joinpath("systhemes")
+USER_HOME = Path.home()
+USER_CONF = USER_HOME.joinpath(".config")
+SYTH_ROOT = USER_CONF.joinpath("systheme2")
+SYTH_MDLS = SYTH_ROOT.joinpath("modules")
+SYTH_THMS = SYTH_ROOT.joinpath("systhemes")
 
 if not USER_CONF.exists():
     os.mkdir(USER_CONF)
 
-if not ST_ROOT.exists():
-    os.mkdir(ST_ROOT)
+if not SYTH_ROOT.exists():
+    os.mkdir(SYTH_ROOT)
 
 # =============================================================================
 # === Helpers =================================================================
 
 
 def module_theme_path(module, theme):
-    path = ST_DATA.joinpath(module).joinpath("themes").joinpath(theme)
+    path = SYTH_MDLS.joinpath(module).joinpath("themes").joinpath(theme)
     return path
 
 
@@ -36,17 +37,21 @@ def module_theme_path(module, theme):
 
 class Symbols:
 
-    line_num = 1
-    symbols = dict()
-    modules = dict()
+    def __init__(self):
+        self.line_num = -1
+        self.symbols = dict()
+        self.modules = dict()
+        self.path = None
 
     def error(self, msg):
-        print(f"ERROR, L{self.line_num + 1}: {msg}")
+        print("*** ERROR ***")
+        print(f"Line {self.line_num + 1} of [{self.path}]\n{msg}")
         exit(1)
 
     def get_symbols(self, f):
 
         with open(f) as syth:
+            self.path = f
             lines = syth.readlines()
             for self.line_num, line in enumerate(lines):
                 tokens = shlex.split(line, comments=True, posix=False)
@@ -127,7 +132,98 @@ class Symbols:
 
 
 # =============================================================================
+# === Templates ===============================================================
+
+
+class Template:
+
+    def __init__(self):
+        self.open_brace = ['[', '%']
+        self.close_brace = ['%', ']']
+        self.line_num = -1
+        self.path = None
+        self.dst_path = None
+        self.post_script = None
+        self.pre_script = None
+        self.header_done = False
+        self.symbols = None
+        self.reggy = None
+        self.out = None
+
+    def error(self, msg):
+        print("*** ERROR ***")
+        print(f"Line {self.line_num + 1} of [{self.path}]\n{msg}")
+        exit(1)
+
+    def process(self, path, symbols):
+        self.symbols = symbols
+        self.path = path
+        with open(path) as template:
+            lines = template.readlines()
+            for line_num, line in enumerate(lines):
+                if self.header_done:
+                    self.body_data(line)
+                else:
+                    self.header_data(line)
+
+    def header_data(self, line):
+        if line == "[% __END_HEADER__ %]\n":
+            self.finalize_header()
+            return
+
+        tokens = shlex.split(line, comments=True, posix=True)
+
+        if len(tokens) == 0:
+            return
+        if tokens[0] == "path":
+            self.set_dst_path(tokens)
+        elif tokens[0] == "braces":
+            self.set_braces(tokens)
+        else:
+            self.error(f"unknown token [{tokens[0]}]")
+
+    def finalize_header(self):
+        if self.dst_path is None:
+            self.error(f"path was not specified in template {self.path}")
+        # TODO: yikes
+        self.out = open(self.dst_path, 'w')
+        re_lbrace = '\\' + '\\'.join(self.open_brace)
+        re_rbrace = '\\' + '\\'.join(self.close_brace)
+        self.reggy = re.compile(f"{re_lbrace}( )*[a-zA-Z0-9]*( )*{re_rbrace}")
+        self.header_done = True
+
+    def set_dst_path(self, tokens):
+        if len(tokens) != 3:
+            self.error(f"expected 3 tokens, got {len(tokens)} {tokens}")
+        if tokens[1] != "=":
+            self.error(f"invalid syntax, expected [\"=\"] as 2nd token, got [{tokens[1]}]")
+
+        self.dst_path = Path(tokens[2])
+        if not self.dst_path.exists():
+            self.error(f"template destination path does not exist: {self.dst_path}")
+
+    def set_braces(self, tokens):
+        if len(tokens) != 4:
+            self.error(f"expected 4 tokens, got {len(tokens)} {tokens}")
+        if tokens[1] != "=":
+            self.error(f"invalid syntax, expected [\"=\"] as 2nd token, got [{tokens[1]}]")
+        self.open_brace = list(tokens[2])
+        self.close_brace = list(tokens[3])
+
+    def body_data(self, line):
+        match = self.reggy.search(line)
+        while match is not None:
+            id = match.group()[len(self.open_brace):-len(self.close_brace)].strip()
+            value = self.symbols[id]
+            line = line[:match.start()] + value + line[match.end():]
+            match = self.reggy.search(line)
+
+        self.out.write(line)
+
+
+# =============================================================================
 # === Main ====================================================================
+
 
 def main():
 
@@ -141,7 +237,7 @@ def main():
     args = parser.parse_args()
 
     # Load JSON theme
-    theme_path = ST_STHEMES.joinpath(args.theme)
+    theme_path = SYTH_THMS.joinpath(args.theme)
     with open(theme_path, 'r') as theme_file:
         theme_json = json.load(theme_file)
 
@@ -152,6 +248,7 @@ def main():
         # TODO: Prompt user when invalid path
         symbols = Symbols().get_symbols(module_path)
         print(symbols)
+        Template().process(SYTH_MDLS.joinpath(module).joinpath("template"), symbols)
 
     # Get template file
 
