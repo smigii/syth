@@ -85,7 +85,7 @@ class Symbols:
             self.error(f"string assignment invalid syntax, expected \"=\" as 3rd token, got [{tokens[2]}]")
 
         # Resolve string literal or module
-        if value[0] == "\"":
+        if value[0] == "\"" or value[0] == "\'":
             value = value[1:-1]
         else:
             module_tokens = value.split(sep=".")
@@ -227,7 +227,7 @@ class Template:
 
 def main():
 
-    # Args
+    # Args, TODO: --system and --module, default to --system
     parser = argparse.ArgumentParser(description="Systheme version 0.1.0")
     parser.add_argument('-s', action='store_true', help='Simulation mode flag, no changes will be made to file system.')
     parser.add_argument('-v', action='store_true', help='Verbose mode flag.')
@@ -247,10 +247,7 @@ def main():
         module_path = module_theme_path(module, theme)
         # TODO: Prompt user when invalid path
         symbols = Symbols().get_symbols(module_path)
-        print(symbols)
         Template().process(SYTH_MDLS.joinpath(module).joinpath("template"), symbols)
-
-    # Get template file
 
 
 if __name__ == "__main__":
