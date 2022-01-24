@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+
+from pathlib import Path
+import argparse
+import shlex
+import json
+import os
+
+# =============================================================================
+# === Globals =================================================================
+
+USER_HOME  = Path.home()
+USER_CONF  = USER_HOME.joinpath(".config")
+ST_ROOT    = USER_CONF.joinpath("systheme2")
+ST_DATA    = ST_ROOT.joinpath("data")
+ST_STHEMES = ST_ROOT.joinpath("systhemes")
+
+if not USER_CONF.exists():
+    os.mkdir(USER_CONF)
+
+if not ST_ROOT.exists():
+    os.mkdir(ST_ROOT)
+
+# =============================================================================
+# === Helpers =================================================================
+
+
+def module_theme_path(module, theme):
+    path = ST_DATA.joinpath(module).joinpath("themes").joinpath(theme)
+    return path
+
+
+# =============================================================================
+# === Symbols =================================================================
+
+
+class Symbols:
+
+    line_num = 1
+    symbols = dict()
+    modules = dict()
+
+    def error(self, msg):
+        print(f"ERROR, L{self.line_num + 1}: {msg}")
+        exit(1)
+
+    def get_symbols(self, f):
+
+        with open(f) as syth:
+            lines = syth.readlines()
+            for self.line_num, line in enumerate(lines):
+                tokens = shlex.split(line, comments=True, posix=False)
+
+                if len(tokens) == 0:
+                    continue
+
+                if tokens[0] == 'include':
+                    self.include_module(tokens)
+                elif tokens[0] == 'string':
+                    self.str_assign(tokens)
+                else:
+                    self.error(f"invalid token [{tokens[0]}]")
+
+        return self.symbols
+
+    def str_assign(self, tokens):
+        # string id = "some string"
+        # string id = module.id
+
+        if len(tokens) != 4:
+            self.error(f"expected 4 tokens, got {len(tokens)} {tokens}")
+
+        id = tokens[1]
+        value = tokens[3]
+
+        if id in self.symbols:
+            self.error(f"identifier [{id}] already exists")
+
+        if tokens[2] != "=":
+            self.error(f"string assignment invalid syntax, expected \"=\" as 3rd token, got [{tokens[2]}]")
+
+        # Resolve string literal or module
+        if value[0] == "\"":
+            value = value[1:-1]
+        else:
+            module_tokens = value.split(sep=".")
+            if len(module_tokens) != 2:
+                self.error(f"invalid module reference, expected form [module.id], got [{value}]")
+            module = module_tokens[0]
+            foreign_id = module_tokens[1]
+            if module in self.modules:
+                if foreign_id in self.modules[module]:
+                    value = self.modules[module][foreign_id]
+                else:
+                    self.error(f"invalid id [{foreign_id}] for included module {module}")
+            else:
+                self.error(f"module [{module}] has not been included")
+
+        self.symbols[id] = value
+
+    def include_module(self, tokens):
+        # include module::theme as identifier
+
+        module_token = tokens[1]
+        id = tokens[3]
+
+        if len(tokens) != 4:
+            self.error(f"expected 4 tokens, got {len(tokens)} {tokens}")
+
+        if tokens[2] != "as":
+            self.error(f"include statement invalid syntax, expected \"as\" as 3rd token, got [{tokens[2]}]")
+
+        if id in self.modules:
+            self.error(f"module identifier [{id}] already exists")
+
+        module_tokens = module_token.split(sep='::')
+        if len(module_tokens) != 2:
+            self.error(f"invalid module reference, expected form [module::theme], got [{module_token}]")
+
+        module = module_tokens[0]
+        theme = module_tokens[1] + ".syth"
+        path = module_theme_path(module, theme)
+        if not path.exists():
+            self.error(f"specified module and path does not exist [{path}]")
+        symbols = Symbols().get_symbols(path)
+        self.modules[id] = symbols
+
+
+# =============================================================================
+# === Main ====================================================================
+
+def main():
+
+    # Args
+    parser = argparse.ArgumentParser(description="Systheme version 0.1.0")
+    parser.add_argument('-s', action='store_true', help='Simulation mode flag, no changes will be made to file system.')
+    parser.add_argument('-v', action='store_true', help='Verbose mode flag.')
+    parser.add_argument('-b', action='store_true', help='Backup mode flag, create a backup of each overwritten file.')
+    parser.add_argument('-c', action='store_true', help='Confirm mode flag, prompt confirmation before each overwrite.')
+    parser.add_argument('theme', type=str, help="JSON theme file.")
+    args = parser.parse_args()
+
+    # Load JSON theme
+    theme_path = ST_STHEMES.joinpath(args.theme)
+    with open(theme_path, 'r') as theme_file:
+        theme_json = json.load(theme_file)
+
+    # Process theme
+    for module in theme_json:
+        theme = theme_json[module]
+        module_path = module_theme_path(module, theme)
+        # TODO: Prompt user when invalid path
+        symbols = Symbols().get_symbols(module_path)
+        print(symbols)
+
+    # Get template file
+
+
+if __name__ == "__main__":
+    main()
