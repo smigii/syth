@@ -1,25 +1,23 @@
-# Systheme
+# Syth
 
-Systheme is pretty much just a search and replace program, tailored for
-managing system themes on linux machines. This is accomplished using a specific
+***IN PROGRESS***
+
+Syth is pretty much just a search and replace program, tailored for managing
+system-wide themes in linux environments. This is accomplished using a specific
 directory structure and a simple scripting language, syth script.
 
 ## Usage
 
 ```text
-usage: systheme [-h] [-s] [-v] [-b] [-c] theme
+usage: syth theme
 
 Systheme version 0.1.0
 
 positional arguments:
-  theme       JSON theme file.
+  theme       JSON theme file, relative to ~/.config/syth/themes.
 
 optional arguments:
   -h, --help  show this help message and exit
-  -s          Simulation mode flag, no changes will be made to file system.
-  -v          Verbose mode flag.
-  -b          Backup mode flag, create a backup of each overwritten file.
-  -c          Confirm mode flag, prompt confirmation before each overwrite.
 ```
 
 ## Directory Structure
