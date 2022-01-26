@@ -11,8 +11,6 @@ directory structure and a simple scripting language, syth script.
 ```text
 usage: syth theme
 
-Systheme version 0.1.0
-
 positional arguments:
   theme       JSON theme file, relative to ~/.config/syth/themes.
 
@@ -39,18 +37,18 @@ ROOT
 │         ├─ vimrc_gruvbox.syth
 │         └─ vimrc_monokai.syth
 │
-└─ systhemes
-    ├─ theme1.json
-    └─ theme2.json
+└─ sthemes
+   ├─ theme1.json
+   └─ theme2.json
 ```
 
 The systheme root directory contains all the files necessary to build your
 config files according to some rules defined in the systheme you specify.
-This directory should go in `~/.config/systheme`
+This directory should go in `~/.config/syth`
 
-### Systhemes Directory
+### Sthemes Directory
 
-This directory is simple, it holds the systheme files (in json format)
+This directory is simple, it holds the system theme files (in json format)
 that define a theme.
 
 ```json
@@ -63,7 +61,7 @@ that define a theme.
 It's just a bunch of key-value pairs, matching a theme to a module, which
 is explained below.
 
-Using the directory structure above, we could create `systhemes/gruvbox.json`
+Using the directory structure above, we could create `sthemes/gruvbox.json`
 as follows
 
 ```json
